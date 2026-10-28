@@ -12,14 +12,14 @@ This project detects possible driver drowsiness using eye images and a trained d
 - Scikit-learn
 
 ## Dataset
-The model was trained using the MRL Eye Dataset. Dataset files are not included in this repository.
+The model was trained using the MRL Eye Dataset. NTHU-DDD and UTA-RLDD datasets are also stored locally for this project. Dataset files are not included in this repository because of their large size.
 
 ## Model Performance
 - Test accuracy: 84%
 - Awake recall: 77%
 - Sleepy recall: 92%
 
-Results are from the current test evaluation and may vary with model versions and conditions.
+These results are from the current test evaluation and may vary with model versions and conditions.
 
 ## Project Structure
 - `app.py` — webcam detection application
@@ -31,12 +31,9 @@ Results are from the current test evaluation and may vary with model versions an
 
 ## Setup
 1. Create and activate a Python virtual environment.
-2. Install dependencies:
-   `pip install -r requirements.txt`
-3. Place the trained model at:
-   `models/augmented_drowsiness_model.keras`
-4. Run the application:
-   `python app.py`
+2. Install dependencies using `pip install -r requirements.txt`.
+3. Place the trained model at `models/augmented_drowsiness_model.keras`.
+4. Run the application using `python app.py`.
 
 ## Important Note
 This is an academic prototype, not a certified driver-safety system. Do not rely on it to make real-world driving decisions.
