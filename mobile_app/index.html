@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#101827">
+    <title>Driver Drowsiness Detection</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #101827;
+            color: #f8fafc;
+        }
+
+        .app {
+            max-width: 440px;
+            margin: auto;
+        }
+
+        .header {
+            text-align: center;
+            margin: 18px 0 25px;
+        }
+
+        .header h1 {
+            font-size: 25px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #aab7ca;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .camera-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 18px;
+            padding: 12px;
+            overflow: hidden;
+        }
+
+        video {
+            display: block;
+            width: 100%;
+            min-height: 220px;
+            max-height: 340px;
+            object-fit: cover;
+            border-radius: 12px;
+            background: #080d16;
+        }
+
+        .status {
+            margin-top: 18px;
+            padding: 18px;
+            border-radius: 14px;
+            background: #263449;
+            text-align: center;
+        }
+
+        .status h2 {
+            margin: 0 0 8px;
+            font-size: 22px;
+        }
+
+        .status p {
+            margin: 0;
+            color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .buttons {
+            display: grid;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #start {
+            background: #38bdf8;
+            color: #082f49;
+        }
+
+        #stop {
+            background: #334155;
+            color: white;
+        }
+
+        .note {
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 12px;
+            line-height: 1.6;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="app">
+        <header class="header">
+            <h1>Driver Drowsiness Detection</h1>
+            <p>Personalized Mobile-Based Driver Drowsiness Detection System</p>
+        </header>
+
+        <section class="camera-box">
+            <video id="camera" autoplay playsinline muted></video>
+        </section>
+
+        <section class="status" aria-live="polite">
+            <h2 id="statusTitle">Camera Not Started</h2>
+            <p id="statusMessage">
+                Tap Start Camera to preview your camera.
+            </p>
+        </section>
+
+        <section class="status" id="alertBox" style="display: none; background: #7f1d1d;">
+            <h2>⚠️ DROWSINESS ALERT!</h2>
+            <p>Please stay alert. Take a break if you feel sleepy.</p>
+        </section>
+
+        <div class="buttons">
+            <button id="start">Start Camera</button>
+            <button id="stop">Stop Camera</button>
+        </div>
+
+        <p class="note">
+            Prototype interface only. A camera preview does not detect
+            drowsiness by itself. Model integration is the next step.
+            Never use this prototype as your only driving safety system.
+        </p>
+    </main>
+
+    <script>
+        const camera = document.getElementById("camera");
+        const startButton = document.getElementById("start");
+        const stopButton = document.getElementById("stop");
+        const statusTitle = document.getElementById("statusTitle");
+        const statusMessage = document.getElementById("statusMessage");
+
+        let cameraStream = null;
+        let detectionTimer = null;
+        let isChecking = false;
+        const alertBox = document.getElementById("alertBox");
+        function playAlertSound() {
+            if (!alertSound) {
+                alertSound = new AudioContext();
+            }
+
+            const oscillator = alertSound.createOscillator();
+            const gain = alertSound.createGain();
+
+            oscillator.connect(gain);
+            gain.connect(alertSound.destination);
+
+            oscillator.frequency.value = 1000;
+            gain.gain.value = 0.2;
+
+            oscillator.start();
+            oscillator.stop(alertSound.currentTime + 0.5);
+        }
+
+        let drowsyCount = 0;
+        let alertSound = null;
+
+        async function checkDrowsiness() {
+            if (!cameraStream || camera.readyState < 2 || isChecking) {
+                return;
+            }
+
+            isChecking = true;
+
+            try {
+                const canvas = document.createElement("canvas");
+                canvas.width = camera.videoWidth;
+                canvas.height = camera.videoHeight;
+
+                const context = canvas.getContext("2d");
+                context.drawImage(camera, 0, 0, canvas.width, canvas.height);
+
+                const blob = await new Promise(resolve =>
+                    canvas.toBlob(resolve, "image/jpeg", 0.8)
+                );
+
+                if (!blob) {
+                    throw new Error("Could not capture camera image.");
+                }
+
+                const formData = new FormData();
+                formData.append("image", blob, "camera.jpg");
+
+                const response = await fetch("http://127.0.0.1:5050/predict", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error("Prediction server returned an error.");
+                }
+
+                const result = await response.json();
+                if (result.status === "DROWSY") {
+                    drowsyCount++;
+                } else {
+                    drowsyCount = 0;
+                    alertBox.style.display = "none";
+                }
+
+                if (drowsyCount >= 5) {
+                    alertBox.style.display = "block";
+
+                    if (drowsyCount === 5) {
+                        playAlertSound();
+                    }
+                }
+
+
+
+                statusTitle.textContent = result.status || "Unknown";
+
+                if (result.sleepy_probability !== undefined) {
+                    statusMessage.textContent =
+                        "Sleepy Probability: " +
+                        (result.sleepy_probability * 100).toFixed(1) +
+                        "% | " + (result.message || "");
+                } else {
+                    statusMessage.textContent =
+                        result.message || "Waiting for prediction.";
+                }
+            } catch (error) {
+                statusTitle.textContent = "Connection Error";
+                statusMessage.textContent =
+                    "Could not connect to the prediction server. Check that Flask is running.";
+                console.error(error);
+            } finally {
+                isChecking = false;
+            }
+        }
+
+        startButton.addEventListener("click", async () => {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user" },
+                    audio: false
+                });
+
+                camera.srcObject = cameraStream;
+                await camera.play();
+
+                statusTitle.textContent = "Camera Active";
+                statusMessage.textContent = "Connecting to drowsiness detection...";
+
+                if (detectionTimer) {
+                    clearInterval(detectionTimer);
+                }
+
+                detectionTimer = setInterval(checkDrowsiness, 1500);
+            } catch (error) {
+                statusTitle.textContent = "Camera Unavailable";
+                statusMessage.textContent =
+                    "Allow camera permission and try again.";
+                console.error(error);
+            }
+        });
+
+        stopButton.addEventListener("click", () => {
+            if (detectionTimer) {
+                clearInterval(detectionTimer);
+                detectionTimer = null;
+            }
+
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+
+            camera.srcObject = null;
+            statusTitle.textContent = "Camera Stopped";
+            statusMessage.textContent = "Tap Start Camera to try again.";
+        });
+    </script>
+
+</body>
+
+</html>
