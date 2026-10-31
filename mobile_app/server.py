@@ -103,7 +103,7 @@ def predict():
     sleepy_score = float(np.mean(scores))
     print("Individual eye scores:", scores)
     print("Average sleepy score:", sleepy_score)
-    status = "DROWSY" if sleepy_score >= 0.5 else "AWAKE"
+    status = "DROWSY" if sleepy_score >= 0.25 else "AWAKE"
 
     return jsonify({
     "status": status,
